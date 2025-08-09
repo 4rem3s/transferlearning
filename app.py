@@ -101,6 +101,7 @@ def logs_tab():
         "Framework": "Streamlit (no api)",
         "Docker": "not used",
     })
+    st.write("inspiration from doc: https://docs.pytorch.org/tutorials/beginner/transfer_learning_tutorial.html")
 
 def create_app(model_name):
     menu = st.sidebar.radio("Navigation", ["Prediction", "Notes"])
