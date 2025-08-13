@@ -1,6 +1,7 @@
 import streamlit as st
 import argparse
 import torch
+import torch.nn.functional as F
 from torchvision import transforms
 from PIL import Image
 import pandas as pd
@@ -32,7 +33,7 @@ training_logs = [
     [19, 0.3306, 0.8566, 0.2100, 0.9412],
 ]
 
-def predict(model_name, img_path):
+def predict(model_name, img_path, threshold=0.87):
     model = torch.load(model_name, map_location="cpu", weights_only=False)
 
     img_mean = [0.485, 0.456, 0.406]
@@ -48,19 +49,28 @@ def predict(model_name, img_path):
     preprocessed_image = transform(image).unsqueeze(0)
 
     model.eval()
-    output = model(preprocessed_image)
-    pred_idx = torch.argmax(output, dim=1)
-    return CLASS_NAMES[pred_idx]
+    with torch.no_grad():
+        output = model(preprocessed_image)
+        probs = F.softmax(output, dim=1)
+        max_prob, pred_idx = torch.max(probs, dim=1)
+
+    if max_prob.item() < threshold:
+        return "Can't classify"
+    else:
+        return CLASS_NAMES[pred_idx]
 
 def prediction_tab(model_name):
     st.header("Image Classification via Transfer Learning :: ResNet")
-    uploaded_file = st.file_uploader("Upload image of ants or bees (.jpeg/.jpg/.png only)", type=["jpg", "jpeg", "png"])
+    uploaded_file = st.file_uploader(
+        "Upload image of ants or bees (.jpeg/.jpg/.png only)",
+        type=["jpg", "jpeg", "png"]
+    )
     if uploaded_file is not None:
         image = Image.open(uploaded_file)
         st.image(image, caption="Uploaded Image", use_container_width=True)
         if st.button("Predict"):
             predicted_class = predict(model_name, uploaded_file)
-            st.subheader(f"Pridection is {predicted_class}")
+            st.subheader(f"Prediction: {predicted_class}")
 
 def logs_tab():
     st.header("Notes")
@@ -84,7 +94,7 @@ def logs_tab():
         "Center Crop": 224,
         "Normalization Mean": [0.485, 0.456, 0.406],
         "Normalization Std": [0.229, 0.224, 0.225],
-        "Augmentations": "Random Horizotal flip and Random center crop"
+        "Augmentations": "Random horizontal flip and random center crop"
     })
 
     st.subheader("Model Architecture")
@@ -94,14 +104,13 @@ def logs_tab():
         "Input Size": "3 x 224 x 224",
     })
 
-
     st.subheader("Deployment Information")
     st.write({
         "Model": MODEL_NAME,
-        "Framework": "Streamlit (no api)",
+        "Framework": "Streamlit (no API)",
         "Docker": "not used",
     })
-    st.write("inspiration from doc: https://docs.pytorch.org/tutorials/beginner/transfer_learning_tutorial.html")
+    st.write("Inspiration from: https://docs.pytorch.org/tutorials/beginner/transfer_learning_tutorial.html")
 
 def create_app(model_name):
     menu = st.sidebar.radio("Navigation", ["Prediction", "Notes"])
